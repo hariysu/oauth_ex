@@ -136,6 +136,7 @@ class WebViewContent extends StatefulWidget {
 
 class _WebViewContentState extends State<WebViewContent> {
   late final WebViewController controller;
+  bool _hasError = false;
 
   @override
   void initState() {
@@ -149,7 +150,11 @@ class _WebViewContentState extends State<WebViewContent> {
               onPageStarted: (String url) {},
               onPageFinished: (String url) {},
               onHttpError: (HttpResponseError error) {},
-              onWebResourceError: (WebResourceError error) {},
+              onWebResourceError: (WebResourceError error) {
+                setState(() {
+                  _hasError = true;
+                });
+              },
               onNavigationRequest: (NavigationRequest request) {
                 if (request.url.contains(
                   'EkapAccount/ExternalCallBack?code=',
@@ -171,6 +176,30 @@ class _WebViewContentState extends State<WebViewContent> {
 
   @override
   Widget build(BuildContext context) {
+    if (_hasError) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, color: Colors.red, size: 64),
+              SizedBox(height: 24),
+              Text(
+                'Lütfen daha sonra tekrar deneyin',
+                style: TextStyle(
+                  fontSize: 20,
+                  color: Colors.black54,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return WebViewWidget(controller: controller);
   }
 }
