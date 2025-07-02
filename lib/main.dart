@@ -95,15 +95,26 @@ class _HomeScreenState extends State<HomeScreen> {
               showModalBottomSheet(
                 context: context,
                 isScrollControlled: true,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(36.0),
+                    topRight: Radius.circular(36.0),
+                  ),
+                ),
+                clipBehavior: Clip.antiAlias,
                 builder:
-                    (context) => SizedBox(
-                      height: MediaQuery.of(context).size.height * 0.9,
-                      child: WebViewContent(
-                        onSuccess: () {
-                          _handleSuccess();
-                          Navigator.pop(context);
-                        },
-                      ),
+                    (context) => DraggableScrollableSheet(
+                      initialChildSize: 0.9,
+                      minChildSize: 0.5,
+                      maxChildSize: 0.95,
+                      expand: false,
+                      builder:
+                          (context, scrollController) => WebViewContent(
+                            onSuccess: () {
+                              _handleSuccess();
+                              Navigator.pop(context);
+                            },
+                          ),
                     ),
               ).whenComplete(_resetSlider);
             }
@@ -258,7 +269,7 @@ class _SlideToActState extends State<SlideToAct> {
                   ],
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(6.0),
+                  padding: const EdgeInsets.all(8.0),
                   child: Image.asset('assets/e-devlet.png'),
                 ),
               ),
