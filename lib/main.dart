@@ -24,6 +24,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late final AppLinks _appLinks;
+  bool _isSuccess = false;
 
   @override
   void initState() {
@@ -39,23 +40,75 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _handleSuccess() {
+    setState(() {
+      _isSuccess = true;
+    });
+  }
+
+  void _resetSlider() {
+    setState(() {
+      _isSuccess = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
-        child: ElevatedButton(
-          onPressed: () {
-            showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              builder:
-                  (context) => SizedBox(
-                    height: MediaQuery.of(context).size.height * 0.9,
-                    child: WebViewContent(),
-                  ),
-            );
+        child: SlideToAct(
+          onSubmit: () {
+            if (MediaQuery.of(context).orientation == Orientation.landscape) {
+              // Use full-screen dialog in landscape
+              showDialog(
+                context: context,
+                builder:
+                    (context) => Dialog.fullscreen(
+                      child: Scaffold(
+                        body: Stack(
+                          children: [
+                            WebViewContent(
+                              onSuccess: () {
+                                _handleSuccess();
+                                Navigator.pop(context);
+                              },
+                            ),
+                            Positioned(
+                              top:
+                                  MediaQuery.of(context).padding.top +
+                                  8, // Safe area padding
+                              right: 16,
+                              child: FloatingActionButton.small(
+                                onPressed: () => Navigator.pop(context),
+                                backgroundColor: Colors.black54,
+                                foregroundColor: Colors.white,
+                                child: Icon(Icons.close),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+              ).whenComplete(_resetSlider);
+            } else {
+              // Use bottom sheet in portrait
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                builder:
+                    (context) => SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.9,
+                      child: WebViewContent(
+                        onSuccess: () {
+                          _handleSuccess();
+                          Navigator.pop(context);
+                        },
+                      ),
+                    ),
+              ).whenComplete(_resetSlider);
+            }
           },
-          child: const Text('Go to URL'),
+          isSuccess: _isSuccess,
         ),
       ),
     );
@@ -63,7 +116,8 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class WebViewContent extends StatefulWidget {
-  const WebViewContent({super.key});
+  final VoidCallback onSuccess;
+  const WebViewContent({super.key, required this.onSuccess});
 
   @override
   State<WebViewContent> createState() => _WebViewContentState();
@@ -90,7 +144,7 @@ class _WebViewContentState extends State<WebViewContent> {
                   'EkapAccount/ExternalCallBack?code=',
                 )) {
                   print(request.url);
-                  Navigator.pop(context);
+                  widget.onSuccess();
                   return NavigationDecision.prevent;
                 }
                 return NavigationDecision.navigate;
@@ -110,58 +164,108 @@ class _WebViewContentState extends State<WebViewContent> {
   }
 }
 
-
-/* class WebViewScreen extends StatefulWidget {
-  const WebViewScreen({super.key});
+class SlideToAct extends StatefulWidget {
+  final VoidCallback onSubmit;
+  final bool isSuccess;
+  const SlideToAct({Key? key, required this.onSubmit, required this.isSuccess})
+    : super(key: key);
 
   @override
-  State<WebViewScreen> createState() => _WebViewScreenState();
+  State<SlideToAct> createState() => _SlideToActState();
 }
 
-class _WebViewScreenState extends State<WebViewScreen> {
-  late final WebViewController controller;
+class _SlideToActState extends State<SlideToAct> {
+  double _dragPosition = 0.0;
+  bool _completed = false;
 
   @override
-  void initState() {
-    super.initState();
-    controller =
-        WebViewController()
-          ..setJavaScriptMode(JavaScriptMode.unrestricted)
-          ..setNavigationDelegate(
-            NavigationDelegate(
-              onProgress: (int progress) {
-                // Optionally handle progress
-              },
-              onPageStarted: (String url) {},
-              onPageFinished: (String url) {},
-              onHttpError: (HttpResponseError error) {},
-              onWebResourceError: (WebResourceError error) {},
-              onNavigationRequest: (NavigationRequest request) {
-                // E-devlet callback URL'ini yakala
-                if (request.url.contains(
-                  'EkapAccount/ExternalCallBack?code=',
-                )) {
-                  print(request.url);
-                  Navigator.pop(context);
-                  //_handleCallback(request.url);
-                  return NavigationDecision.prevent;
-                }
-                return NavigationDecision.navigate;
-              },
-            ),
-          )
-          ..loadRequest(
-            Uri.parse(
-              'https://ekapv2.kik.gov.tr/authzsvc/EkapAccount/RedirectEdevletLogin?returnUrl=uygulama://edevlet-callback',
-            ),
-          );
+  void didUpdateWidget(covariant SlideToAct oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.isSuccess && _completed) {
+      setState(() {
+        _completed = false;
+        _dragPosition = 0.0;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('WebView2')),
-      body: WebViewWidget(controller: controller),
+    final width = 250.0;
+    final height = 76.0;
+    final thumbSize = 70.0;
+    return GestureDetector(
+      onHorizontalDragUpdate: (details) {
+        if (_completed) return;
+        setState(() {
+          _dragPosition += details.delta.dx;
+          _dragPosition = _dragPosition.clamp(0.0, width - thumbSize);
+        });
+      },
+      onHorizontalDragEnd: (details) {
+        if (_completed) return;
+        if (_dragPosition > width - thumbSize - 8) {
+          setState(() {
+            _dragPosition = width - thumbSize;
+            _completed = true;
+          });
+          Future.delayed(const Duration(milliseconds: 300), widget.onSubmit);
+        } else {
+          setState(() {
+            _dragPosition = 0.0;
+          });
+        }
+      },
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: Stack(
+          alignment: Alignment.centerLeft,
+          children: [
+            Container(
+              width: width,
+              height: height,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(height / 2),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                _completed && widget.isSuccess ? 'Başarılı!' : 'Giriş Yap',
+                style: TextStyle(
+                  color: Colors.black54,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 100),
+              left: _dragPosition,
+              top: 4,
+              child: Container(
+                width: thumbSize,
+                height: thumbSize,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(thumbSize / 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(6.0),
+                  child: Image.asset('assets/e-devlet.png'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
-} */
+}
