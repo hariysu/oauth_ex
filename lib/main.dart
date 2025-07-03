@@ -1,6 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:app_links/app_links.dart';
 
 void main() {
   runApp(const MainApp());
@@ -23,22 +24,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  late final AppLinks _appLinks;
   bool _isSuccess = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _appLinks = AppLinks();
-    _appLinks.allUriLinkStream.listen((Uri? uri) {
-      if (uri != null) {
-        final code = uri.queryParameters['code'];
-        final state = uri.queryParameters['state'];
-        print('code: $code');
-        print('state: $state');
-      }
-    });
-  }
 
   void _handleSuccess() {
     setState(() {
@@ -108,13 +94,25 @@ class _HomeScreenState extends State<HomeScreen> {
                       minChildSize: 0.5,
                       maxChildSize: 0.95,
                       expand: false,
-                      builder:
-                          (context, scrollController) => WebViewContent(
-                            onSuccess: () {
-                              _handleSuccess();
-                              Navigator.pop(context);
-                            },
-                          ),
+                      builder: (context, scrollController) {
+                        final content = WebViewContent(
+                          onSuccess: () {
+                            _handleSuccess();
+                            Navigator.pop(context);
+                          },
+                        );
+
+                        return Platform.isAndroid
+                            ? AnimatedPadding(
+                              duration: Duration(milliseconds: 100),
+                              padding: EdgeInsets.only(
+                                bottom:
+                                    MediaQuery.of(context).viewInsets.bottom,
+                              ),
+                              child: content,
+                            )
+                            : content;
+                      },
                     ),
               ).whenComplete(_resetSlider);
             }
@@ -158,18 +156,35 @@ class _WebViewContentState extends State<WebViewContent> {
                   _progress = 1.0;
                 });
               },
-              onHttpError: (HttpResponseError error) {},
+              onHttpError: (HttpResponseError error) {
+                setState(() {
+                  _hasError = true;
+                });
+              },
               onWebResourceError: (WebResourceError error) {
                 setState(() {
                   _hasError = true;
                 });
               },
               onNavigationRequest: (NavigationRequest request) {
+                // Success case
                 if (request.url.contains(
                   'EkapAccount/ExternalCallBack?code=',
                 )) {
                   print(request.url);
                   widget.onSuccess();
+                  return NavigationDecision.prevent;
+                }
+                // Error case
+                else if (request.url.contains(
+                      'EkapAccount/ExternalCallBack?error=',
+                    ) ||
+                    request.url.contains(
+                      'EkapAccount/ExternalCallBack?error_description=',
+                    )) {
+                  setState(() {
+                    _hasError = true;
+                  });
                   return NavigationDecision.prevent;
                 }
                 return NavigationDecision.navigate;
@@ -178,7 +193,7 @@ class _WebViewContentState extends State<WebViewContent> {
           )
           ..loadRequest(
             Uri.parse(
-              'https://ekapv2.kik.gov.tr/authzsvc/EkapAccount/RedirectEdevletLogin?returnUrl=uygulama://edevlet-callback',
+              'https://ekapv2.kik.gov.tr/authzsvc/EkapAccount/RedirectEdevletLogin?',
             ),
           );
   }
@@ -226,8 +241,11 @@ class _WebViewContentState extends State<WebViewContent> {
 class SlideToAct extends StatefulWidget {
   final VoidCallback onSubmit;
   final bool isSuccess;
-  const SlideToAct({Key? key, required this.onSubmit, required this.isSuccess})
-    : super(key: key);
+  const SlideToAct({
+    super.key,
+    required this.onSubmit,
+    required this.isSuccess,
+  });
 
   @override
   State<SlideToAct> createState() => _SlideToActState();
