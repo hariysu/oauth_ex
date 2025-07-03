@@ -137,6 +137,7 @@ class WebViewContent extends StatefulWidget {
 class _WebViewContentState extends State<WebViewContent> {
   late final WebViewController controller;
   bool _hasError = false;
+  double _progress = 0.0;
 
   @override
   void initState() {
@@ -146,9 +147,17 @@ class _WebViewContentState extends State<WebViewContent> {
           ..setJavaScriptMode(JavaScriptMode.unrestricted)
           ..setNavigationDelegate(
             NavigationDelegate(
-              onProgress: (int progress) {},
+              onProgress: (int progress) {
+                setState(() {
+                  _progress = progress / 100.0;
+                });
+              },
               onPageStarted: (String url) {},
-              onPageFinished: (String url) {},
+              onPageFinished: (String url) {
+                setState(() {
+                  _progress = 1.0;
+                });
+              },
               onHttpError: (HttpResponseError error) {},
               onWebResourceError: (WebResourceError error) {
                 setState(() {
@@ -200,7 +209,17 @@ class _WebViewContentState extends State<WebViewContent> {
         ),
       );
     }
-    return WebViewWidget(controller: controller);
+    return Stack(
+      children: [
+        WebViewWidget(controller: controller),
+        if (_progress < 1.0)
+          Positioned.fill(
+            child: Center(
+              child: CircularProgressIndicator(/* value: _progress */),
+            ),
+          ),
+      ],
+    );
   }
 }
 
