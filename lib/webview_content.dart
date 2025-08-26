@@ -40,37 +40,23 @@ class _WebViewContentState extends State<WebViewContent> {
 
                     String cleaned = rawResult.toString();
 
-                    // Sadece dış tırnakları kırp
-                    if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
-                      cleaned = cleaned.substring(1, cleaned.length - 1);
-                    }
-
                     // Debug için ham veriyi yazdır
                     debugPrint('Cleaned JSON: $cleaned');
 
-                    // Dış JSON'u ayrıştır
-                    final outerJson = jsonDecode(cleaned);
+                    // JSON'u ayrıştır
+                    final jsonData = jsonDecode(cleaned);
 
-                    // İçteki string olarak gelen JSON'u da ayrıştır
-                    final innerJsonString = outerJson['ExternalCallbackResult'];
-                    final innerJson = jsonDecode(innerJsonString);
-                    final userJson = innerJson['user'] as Map<String, dynamic>;
+                    // Token ve mobilKullaniciOrganizasyonV2 içeren format
+                    if (jsonData.containsKey('mobilKullaniciOrganizasyonV2')) {
+                      final authResponse = AuthResponse.fromJson(jsonData);
+                      debugPrint('Token: ${authResponse.token}');
 
-                    final kullanici = MobilKullaniciOrganizasyonV2.fromJson(
-                      userJson,
-                    );
-
-                    debugPrint(
-                      'Kullanıcı adı: ${kullanici.adi} ${kullanici.soyadi}',
-                    );
-                    debugPrint(
-                      'İdare sayısı: ${kullanici.idareBilgileri.length}',
-                    );
-                    debugPrint(
-                      'İlk idare: ${kullanici.idareBilgileri[0].idareninAdi}',
-                    );
-
-                    Navigator.pop(context, kullanici);
+                      _handleUserData(
+                        authResponse.mobilKullaniciOrganizasyonV2,
+                      );
+                    } else {
+                      debugPrint('Bilinmeyen JSON formatı');
+                    }
                   } catch (e) {
                     debugPrint("JSON ayrıştırma hatası: $e");
                     // Hata durumunda ham veriyi de yazdır
@@ -122,9 +108,23 @@ class _WebViewContentState extends State<WebViewContent> {
           )
           ..loadRequest(
             Uri.parse(
-              'https://giris.build.turkiye.gov.tr/OAuth2AuthorizationServer/AuthorizationController?client_id=f552cc50-34b5-4da6-8ce4-a541a9fdc42e&redirect_uri=https%3a%2f%2ftsrcekapws.kik.gov.tr%2fKikServisleri%2fGuvenliMobilCihazBilgiServisi.svc%2fExternalCallback&response_type=code&scope=Kimlik-Dogrula+Ad-Soyad&state=NjNiMGY0ZWZmMGM0NGEwOWI2YWRlZGQ4OWEyZjYzM2M%3d&code_challenge=zlcK2UzHgFLSFnAwFB9v1vWs8JMaBg7kCpsOZLwBmc7dhcohyLbdbJk3JsLs&+=S256',
+              'https://rcekapapi.kik.gov.tr/KikMobilServicesApi/api/Auth/RedirectEdevletLogin',
             ),
           );
+  }
+
+  void _handleUserData(MobilKullaniciOrganizasyonV2 kullanici) {
+    debugPrint('Kullanıcı adı: ${kullanici.adi} ${kullanici.soyadi}');
+    debugPrint('İdare sayısı: ${kullanici.idareBilgileri.length}');
+
+    // İlk idareninAdi'yi yazdır
+    if (kullanici.idareBilgileri.isNotEmpty) {
+      debugPrint('İlk idare: ${kullanici.idareBilgileri[0].idareninAdi}');
+    } else {
+      debugPrint('İdare bilgisi bulunamadı');
+    }
+
+    //Navigator.pop(context, kullanici);
   }
 
   @override
@@ -167,6 +167,40 @@ class _WebViewContentState extends State<WebViewContent> {
   }
 }
 
+class AuthResponse {
+  final String token;
+  final String refreshToken;
+  final String tokenExpires;
+  final String refreshTokenExpires;
+  final MobilKullaniciOrganizasyonV2 mobilKullaniciOrganizasyonV2;
+  final int errorCode;
+  final String? errorMessage;
+
+  AuthResponse({
+    required this.token,
+    required this.refreshToken,
+    required this.tokenExpires,
+    required this.refreshTokenExpires,
+    required this.mobilKullaniciOrganizasyonV2,
+    required this.errorCode,
+    this.errorMessage,
+  });
+
+  factory AuthResponse.fromJson(Map<String, dynamic> json) {
+    return AuthResponse(
+      token: json['token'] as String? ?? '',
+      refreshToken: json['refreshToken'] as String? ?? '',
+      tokenExpires: json['tokenExpires'] as String? ?? '',
+      refreshTokenExpires: json['refreshTokenExpires'] as String? ?? '',
+      mobilKullaniciOrganizasyonV2: MobilKullaniciOrganizasyonV2.fromJson(
+        json['mobilKullaniciOrganizasyonV2'] as Map<String, dynamic>,
+      ),
+      errorCode: json['errorCode'] as int? ?? -1,
+      errorMessage: json['errorMessage'] as String?,
+    );
+  }
+}
+
 class MobilKullaniciOrganizasyonV2 {
   final String adi;
   final String soyadi;
@@ -184,21 +218,21 @@ class MobilKullaniciOrganizasyonV2 {
 
   factory MobilKullaniciOrganizasyonV2.fromJson(Map<String, dynamic> json) {
     return MobilKullaniciOrganizasyonV2(
-      adi: json['Adi'] as String? ?? '',
-      soyadi: json['Soyadi'] as String? ?? '',
+      adi: json['adi'] as String? ?? '',
+      soyadi: json['soyadi'] as String? ?? '',
       istekliBilgleri:
-          (json['IstekliBilgleri'] as List<dynamic>?)
+          (json['istekliBilgleri'] as List<dynamic>?)
               ?.map((e) => IstekliBilgleri.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
       idareBilgileri:
-          (json['IdareBilgileri'] as List<dynamic>?)
+          (json['idareBilgileri'] as List<dynamic>?)
               ?.map((e) => IdareBilgileri.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
       sonuc:
-          json['Sonuc'] != null
-              ? BoolResultVS2.fromJson(json['Sonuc'] as Map<String, dynamic>)
+          json['sonuc'] != null
+              ? BoolResultVS2.fromJson(json['sonuc'] as Map<String, dynamic>)
               : BoolResultVS2(
                 sonuc: false,
                 mesaj: 'Bilinmeyen hata',
@@ -248,22 +282,22 @@ class IstekliBilgleri {
 
   factory IstekliBilgleri.fromJson(Map<String, dynamic> json) {
     return IstekliBilgleri(
-      organizasyonID: json['OrganizasyonID'] as String? ?? '',
-      organizasyonIDMD5: json['OrganizasyonIDMD5'] as String? ?? '',
-      organizasyonAdi: json['OrganizasyonAdi'] as String? ?? '',
-      unvan: json['Unvan'] as String? ?? '',
-      tcKimlikNo: json['TcKimlikNo'] as String? ?? '',
-      vergiNo: json['VergiNo'] as String? ?? '',
-      adres: json['Adres'] as String? ?? '',
-      telefon: json['Telefon'] as String? ?? '',
-      ePosta: json['EPosta'] as String? ?? '',
-      odaSicilNo: json['OdaSicilNo'] as String? ?? '',
-      sirketTuru: json['SirketTuru'] as String? ?? '',
-      ticariOdaAdi: json['TicariOdaAdi'] as String? ?? '',
-      meslekOdasiAdi: json['MeslekOdasiAdi'] as String? ?? '',
-      gercekTuzelKurum: json['GercekTuzelKurum'] as String? ?? '',
-      ilMerkezi: json['IlMerkezi'] as String? ?? '',
-      yabanciKimlikNo: json['YabanciKimlikNo'] as bool? ?? false,
+      organizasyonID: json['organizasyonID'] as String? ?? '',
+      organizasyonIDMD5: json['organizasyonIDMD5'] as String? ?? '',
+      organizasyonAdi: json['organizasyonAdi'] as String? ?? '',
+      unvan: json['unvan'] as String? ?? '',
+      tcKimlikNo: json['tcKimlikNo'] as String? ?? '',
+      vergiNo: json['vergiNo'] as String? ?? '',
+      adres: json['adres'] as String? ?? '',
+      telefon: json['telefon'] as String? ?? '',
+      ePosta: json['ePosta'] as String? ?? '',
+      odaSicilNo: json['odaSicilNo'] as String? ?? '',
+      sirketTuru: json['sirketTuru'] as String? ?? '',
+      ticariOdaAdi: json['ticariOdaAdi'] as String? ?? '',
+      meslekOdasiAdi: json['meslekOdasiAdi'] as String? ?? '',
+      gercekTuzelKurum: json['gercekTuzelKurum'] as String? ?? '',
+      ilMerkezi: json['ilMerkezi'] as String? ?? '',
+      yabanciKimlikNo: json['yabanciKimlikNo'] as bool? ?? false,
     );
   }
 }
@@ -289,13 +323,13 @@ class IdareBilgileri {
 
   factory IdareBilgileri.fromJson(Map<String, dynamic> json) {
     return IdareBilgileri(
-      organizasyonID: json['OrganizasyonID'] as String? ?? '',
-      idareninAdi: json['IdareninAdi'] as String? ?? '',
-      ustIdareninAdi: json['UstIdareninAdi'] as String? ?? '',
-      enUstIdareninAdi: json['EnUstIdareninAdi'] as String? ?? '',
-      detsisNumarasi: json['DETSİSNumarasi'] as String? ?? '',
-      vergiNo: json['VergiNo'] as String? ?? '',
-      ePostaAdresi: json['EPostaAdresi'] as String? ?? '',
+      organizasyonID: json['organizasyonID'] as String? ?? '',
+      idareninAdi: json['idareninAdi'] as String? ?? '',
+      ustIdareninAdi: json['ustIdareninAdi'] as String? ?? '',
+      enUstIdareninAdi: json['enUstIdareninAdi'] as String? ?? '',
+      detsisNumarasi: json['detsİsNumarasi'] as String? ?? '',
+      vergiNo: json['vergiNo'] as String? ?? '',
+      ePostaAdresi: json['ePostaAdresi'] as String? ?? '',
     );
   }
 }
@@ -315,10 +349,10 @@ class BoolResultVS2 {
 
   factory BoolResultVS2.fromJson(Map<String, dynamic> json) {
     return BoolResultVS2(
-      sonuc: json['Sonuc'] as bool? ?? false,
-      mesaj: json['Mesaj'] as String? ?? '',
-      uniqueName: json['UniqueName'] as String?,
-      resultCode: json['ResultCode'] as int? ?? -1,
+      sonuc: json['sonuc'] as bool? ?? false,
+      mesaj: json['mesaj'] as String? ?? '',
+      uniqueName: json['uniqueName'] as String?,
+      resultCode: json['resultCode'] as int? ?? -1,
     );
   }
 }
